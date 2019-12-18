@@ -96,6 +96,9 @@ pub(crate) struct Driver<T> {
 
     /// Source of "now" instances
     clock: Clock,
+
+    /// Throttling mode affects the behavior of `park_timeout`
+    is_throttling: bool,
 }
 
 /// Timer state shared between `Driver`, `Handle`, and `Registration`.
@@ -137,6 +140,7 @@ where
             wheel: wheel::Wheel::new(),
             park,
             clock,
+            is_throttling: false,
         }
     }
 
@@ -150,15 +154,23 @@ where
         Handle::new(Arc::downgrade(&self.inner))
     }
 
+    /// Set the driver in `throttling` mode.
+    pub(crate) fn enable_throttling(&mut self) {
+        self.is_throttling = true;
+    }
+
     /// Converts an `Expiration` to an `Instant`.
     fn expiration_instant(&self, when: u64) -> Instant {
         self.inner.start + Duration::from_millis(when)
     }
 
     /// Run timer related logic
-    fn process(&mut self) {
+    ///
+    /// The `offset` allows triggering timers by anticipation.
+    /// This is required for the throttling mode.
+    fn process(&mut self, offset: Duration) {
         let now = crate::time::ms(
-            self.clock.now() - self.inner.start,
+            self.clock.now() + offset - self.inner.start,
             crate::time::Round::Down,
         );
         let mut poll = wheel::Poll::new(now);
@@ -263,7 +275,7 @@ where
             }
         }
 
-        self.process();
+        self.process(Duration::from_secs(0));
 
         Ok(())
     }
@@ -271,23 +283,36 @@ where
     fn park_timeout(&mut self, duration: Duration) -> Result<(), Self::Error> {
         self.process_queue();
 
-        match self.wheel.poll_at() {
-            Some(when) => {
-                let now = self.clock.now();
-                let deadline = self.expiration_instant(when);
+        if !self.is_throttling {
+            match self.wheel.poll_at() {
+                Some(when) => {
+                    let now = self.clock.now();
+                    let deadline = self.expiration_instant(when);
 
-                if deadline > now {
-                    self.park.park_timeout(cmp::min(deadline - now, duration))?;
-                } else {
-                    self.park.park_timeout(Duration::from_secs(0))?;
+                    if deadline > now {
+                        self.park.park_timeout(cmp::min(deadline - now, duration))?;
+                    } else {
+                        self.park.park_timeout(Duration::from_secs(0))?;
+                    }
+                }
+                None => {
+                    self.park.park_timeout(duration)?;
                 }
             }
-            None => {
-                self.park.park_timeout(duration)?;
-            }
-        }
 
-        self.process();
+            self.process(Duration::from_secs(0));
+        } else {
+            // In throttling mode, we try to group timers by time frames.
+            // If we intend to throttle the thread for `duration` now,
+            // we need to fire future timers that are closer
+            // to `now` than to the beginning of next time frame.
+
+            // Actual throttling pause is to be handled by caller
+            // depending on tasks availability.
+            self.park.park_timeout(Duration::from_secs(0))?;
+
+            self.process(duration / 2);
+        }
 
         Ok(())
     }
