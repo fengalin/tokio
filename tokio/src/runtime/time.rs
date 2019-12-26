@@ -21,7 +21,7 @@ mod variant {
         Clock::new()
     }
 
-    /// Create a new timer driver with optional throttling and its handle
+    /// Creates a new timer driver with optional throttling and its handle
     pub(crate) fn create_throttling_driver(
         enable: bool,
         io_driver: io::Driver,
@@ -42,7 +42,7 @@ mod variant {
         }
     }
 
-    /// Create a new timer driver / handle pair
+    /// Creates a new timer driver / handle pair
     pub(crate) fn create_driver(
         enable: bool,
         io_driver: io::Driver,
@@ -67,7 +67,7 @@ mod variant {
         ()
     }
 
-    /// Create a new timer driver with optional throttling and its handle
+    /// Creates a new timer driver with optional throttling and its handle
     #[cfg(feature = "rt-core")]
     pub(crate) fn create_throttling_driver(
         _enable: bool,
@@ -78,7 +78,7 @@ mod variant {
         (io_driver, ())
     }
 
-    /// Create a new timer driver / handle pair
+    /// Creates a new timer driver / handle pair
     pub(crate) fn create_driver(
         _enable: bool,
         io_driver: io::Driver,

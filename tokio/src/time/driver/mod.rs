@@ -146,7 +146,7 @@ where
         Handle::new(Arc::downgrade(&self.inner))
     }
 
-    /// Set the driver in `throttling` mode.
+    /// Sets the driver in `throttling` mode.
     pub(crate) fn enable_throttling(&mut self) {
         self.is_throttling = true;
     }

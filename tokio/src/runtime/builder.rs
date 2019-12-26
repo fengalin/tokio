@@ -299,7 +299,7 @@ impl Builder {
         self
     }
 
-    /// Set the maximum throttling duration.
+    /// Sets the maximum throttling duration.
     ///
     /// Throttling reduces syscalls & context switches
     /// by grouping timers, I/O and tasks handling.
